@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import requests
+import socket
 
 from googleapiclient import discovery
 import httplib2
@@ -14,6 +15,7 @@ from oauth2client.file import Storage
 argparser = argparse.ArgumentParser(add_help=False)
 argparser.add_argument('-p', '--project', help="Project ID", required=True)
 argparser.add_argument('-i', '--instance', help="Instance Name")
+argparser.add_argument('-n', '--ip_name', help="IP Name", default=socket.gethostname())
 
 parser = argparse.ArgumentParser(
     description=__doc__,
@@ -45,7 +47,6 @@ def authenticate_using_user_account(path_to_client_secrets_file):
 
 
 def setup():
-    # Authenticate using the supplied user account credentials
     http = authenticate_using_user_account('client_secrets.json')
     service = discovery.build('sqladmin', 'v1beta4', http=http)
     return service
@@ -53,7 +54,6 @@ def setup():
 
 service = setup()
 project = flags.project
-
 
 def list_instances():
     resp = service.instances().list(project=project).execute()
@@ -63,23 +63,23 @@ def list_instances():
 
 
 def get_instance_data(instance_name):
-    return service.instances().get(project="bmindtracker", instance=instance_name).execute()
+    return service.instances().get(project=flags.project, instance=instance_name).execute()
 
 
 def add_ip_to_body(body):
     authorized_networks = body['settings']['ipConfiguration']['authorizedNetworks']
     ip = requests.get('http://ipinfo.io/json').json()['ip']
     authorized_networks = [
-        network for network in authorized_networks if network['name'] != 'Chris AUTO-IP']
+        network for network in authorized_networks if network['name'] != flags.ip_name]
 
     authorized_networks.append(
-        {'value': ip, 'name': 'Chris AUTO-IP', 'kind': 'sql#aclEntry'})
+        {'value': ip, 'name': flags.ip_name, 'kind': 'sql#aclEntry'})
 
     return {'settings': {'ipConfiguration': {'authorizedNetworks': authorized_networks}}}
 
 
 def patch_instance(instance_name, body):
-    return service.instances().patch(project="bmindtracker", instance=instance_name, body=body).execute()
+    return service.instances().patch(project=flags.project, instance=instance_name, body=body).execute()
 
 
 def main():
